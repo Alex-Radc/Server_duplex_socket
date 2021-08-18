@@ -202,7 +202,9 @@ void send_to_client(int id, int sockfd)
 
 		clock_gettime (CLOCK_REALTIME, &mt1);
 		sscanf(ctime(&mt1.tv_sec), "%s %s %s %s %s", buf0, buf1, buf2, buf3, buf4);
-		sprintf(recv_buf,"Server %d %s:%ld\n",id, buf3, mt1.tv_nsec/1000);
+		////  TODO
+		printf("---------------------->>>>>recv_buf = %s",recv_buf);
+		sprintf(recv_buf,"Server reply to %d %s:%ld\n",id, buf3, mt1.tv_nsec/1000);
 		printf("sockfd = %d\n", sockfd);
 		set = write(sockfd, recv_buf, strlen(recv_buf)); ///Send the data in the send_buf buffer to the peer server
 		if (set < 0)
