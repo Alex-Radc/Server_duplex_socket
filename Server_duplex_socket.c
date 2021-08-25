@@ -21,10 +21,10 @@
 #define PORT 6490
 #define MYPORT 6950
 
-void create_server(void *a);
+void create_server(char *recv_buf);
 int initial_receive(int *conn,int *sockfd) ;
 int initial_send(int *conn, int *sockfd, int client_id);
-void send_to_client(int id, int sockfd);
+void send_to_client(int id, int sockfd, char *recv_buf);
 int receive_from_client(int conn, int sockfd);
 int parser(char *recv_buf);
 
@@ -32,7 +32,7 @@ int temp = 0;
 //////////////////////////////////////////////////////////////////
 int main(void)
 {
-	int sockfd = 0;
+	int sockfd = 0 ;
 	int conn = 0;
 
 	// receive information
@@ -84,7 +84,7 @@ int initial_receive(int *conn,int *sockfd)
 	//int numb_client = 0;
 	//printf("initial_receive() \n");
 	//printf("Timestamp: %d\n",(int)time(NULL));
-	if (listen(*sockfd, SOMAXCONN) < 0)
+	if (listen(*sockfd, SIZE) < 0)  //SOMAXCONN
 		error_print("listen");
 
 	struct sockaddr_in peeraddr;/*Store the client Socket information of a successful connection*/
@@ -99,14 +99,14 @@ int initial_receive(int *conn,int *sockfd)
 /////////////////////////////////////////////////////////////////
 int receive_from_client(int conn, int sockfd)
 {
-	long int id = 0;
-	printf("-->receive_from_client()\n");
+	int id = 0;
+	//printf("-->receive_from_client()\n");
 	//printf("Timestamp: %d\n",(int)time(NULL));
 	char recv_buf[MAX_BUF_LEN] = { 0 };
 	while (1)
 	{
 		int ret = read(conn, recv_buf, MAX_BUF_LEN);//Read data sent by conn connection
-		printf("ret = %d\n",ret);
+		//printf("ret = %d\n",ret);
 		if (ret < 0)
 			error_print("read");
 		else if (ret == 0)
@@ -115,15 +115,18 @@ int receive_from_client(int conn, int sockfd)
 			break; //The parent process receives the server-side exit information (the server Ctrl+C ends the communication process, the read function returns a value of 0, and the loop exits)
 		}
 		//fputs(recv_buf, stdout);
-		printf("resv_buf = %s\n",recv_buf);
-
+		//printf("111111111111111resv_buf = %s\n",recv_buf);
+		char *r_buff =(char*)malloc(sizeof(recv_buf)+1);
+		strncpy(r_buff,recv_buf,sizeof(recv_buf)+1);
+		//printf("<<<r_buff = >>>%s\n", r_buff);
 		// создать новый поток и потом передать его функции send_to_client();
 		id = parser(recv_buf);
 		{
+			printf("2222222222222222resv_buf = %s\n",recv_buf);
 			pthread_t thread;
 			int status = 0;
-
-			status = pthread_create(&thread, NULL, (void *)create_server, (void *) id); // change 13 to client id
+			// переписать тхреад передавать строку вместо id
+			status = pthread_create(&thread, NULL, (void *)create_server, (void*) r_buff); //  id
 			if (status != 0)
 			{
 				printf("main error: can't create thread, status = %d\n", status);
@@ -139,22 +142,26 @@ int receive_from_client(int conn, int sockfd)
 	return 0;
 }
 ///////////////////////////////////////////////////////////////////////
-void create_server(void *id)
+void create_server(char *recv_buf)
 {
-	printf("create_server()\n");
+	/// TODO вызвать  Parser в этой функции и достать с нее id
+	//printf("create_server()\n") ;
 	int sockfd = 0;
 	int conn = 0;
-	int client_id = (long int)id;
-	// send information
+	int client_id = 0;
+
+	client_id = parser(recv_buf);
+	//printf(" CCCCCCCCCLLLLLIIIIEEENNNNT_ID = %d\n",client_id);
 	initial_send(&conn, &sockfd, client_id);
-	send_to_client(client_id, sockfd);
+	//printf( "CCCCRRRRRRRRRRRReate_server() recv_buf = %s\n ", recv_buf);
+	send_to_client(client_id, sockfd, recv_buf);
 	temp++;
 	printf("temp = %d\n", temp);
 }
 ///////////////////////////////////////////////////////////////////
 int initial_send(int *conn, int *sockfd, int client_id)
 {
-
+	printf("initial_send()\n");
 	struct sockaddr_in servaddr;
 	//printf("Timestamp: %d\n",(int)time(NULL));
 
@@ -178,21 +185,25 @@ int initial_send(int *conn, int *sockfd, int client_id)
 	return SUCCESS;
 }
 ////////////////////////////////////////////////////////////////////
-void send_to_client(int id, int sockfd)
+void send_to_client(int id, int sockfd, char *recv_buf )
 {
 	//int conn = 0;
-	struct timespec mt1;
+	//printf("send_to_client()\n");
+	int i = 0;
+	struct timespec mt2;
 	int set = -1;
-	char recv_buf[MAX_BUF_LEN] = {0};
+	char re_buf[MAX_BUF_LEN] = {0};
 	//printf("send_to_client() Hello its me \n");
 	//printf("Timestamp: %d\n",(int)time(NULL));
-	if (3 > sockfd)
+	if ((3 > sockfd) ||(NULL == recv_buf))
 	{
 		printf("invalid input param\n");
 		return;
 	}
+
 	/*Used in the child process to send data to the client*/
 	//signal(SIGUSR1, quit_tranmission);/*Callback function to handle communication interruption*/
+	for(i = 0; i< SIZE; i++)
 	{
 		char buf0[20] = {'\0'};
 		char buf1[20] = {'\0'};
@@ -200,17 +211,29 @@ void send_to_client(int id, int sockfd)
 		char buf3[20] = {'\0'};
 		char buf4[20] = {'\0'};
 
-		clock_gettime (CLOCK_REALTIME, &mt1);
-		sscanf(ctime(&mt1.tv_sec), "%s %s %s %s %s", buf0, buf1, buf2, buf3, buf4);
+		strncpy(re_buf, recv_buf, MAX_BUF_LEN );
+		clock_gettime (CLOCK_REALTIME, &mt2);
+		sscanf(ctime(&mt2.tv_sec), "%s %s %s %s %s", buf0, buf1, buf2, buf3, buf4);
 		////  TODO
-		printf("---------------------->>>>>recv_buf = %s",recv_buf);
-		sprintf(recv_buf,"Server reply to %d %s:%ld\n",id, buf3, mt1.tv_nsec/1000);
-		printf("sockfd = %d\n", sockfd);
-		set = write(sockfd, recv_buf, strlen(recv_buf)); ///Send the data in the send_buf buffer to the peer server
+		printf("---------------------->>>>>re_buf = %s\n",re_buf);
+		sprintf(re_buf,"Server reply to %d %s:%ld\n",id, buf3, mt2.tv_nsec/1000);
+		char *result_buff =(char*)malloc(sizeof(re_buf)+sizeof(recv_buf)+2);
+		memset(result_buff, 0,sizeof(re_buf)+sizeof(recv_buf)+2);
+		strcat(result_buff, recv_buf);
+		strcat(result_buff, " ");
+		strcat(result_buff, re_buf);
+		printf(" RESULT   result_buff = %s", result_buff);
+		printf("\n");
+		//printf("MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM sockfd = %d\n", sockfd);
+		//printf("PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP re_buf = %s\n",re_buf);
+		//strcat(recv_buf,re_buf);
+		//printf("LLLLLLAAAAAAAAAAAAAAASSSSSSSSSSSSSTTTTTTTTTT re_buf = %s\n",re_buf);
+		set = write(sockfd, result_buff, MAX_BUF_LEN); ///Send the data in the send_buf buffer to the peer server
 		if (set < 0)
 			error_print("write");
-		bzero(recv_buf, strlen(recv_buf));
+		bzero(result_buff, strlen(result_buff));
 	}
+	//printf("close send_to_client()\n");
 	close(sockfd);
 }
 //////////////////////////////////////////////////////////////////
@@ -226,6 +249,7 @@ int parser(char *recv_buf)
     char str_time[50] = {"\0"};
     int id_client = 0;
 	sscanf(recv_buf,"%s %d %s",str_client, &id_client, str_time);
+	printf("+++PARSER recv_buf = %s\n",recv_buf);
 	//printf("<Numb client> = %d\n",id_client);
 	return id_client;
 }
